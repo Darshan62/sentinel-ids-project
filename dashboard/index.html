@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🛡 IDS/IPS Real-Time Dashboard</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #f1f5f9;
+      font-family: "Segoe UI", sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      font-weight: 600;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .card {
+      background-color: #1e293b;
+      border: none;
+      border-radius: 10px;
+      padding: 15px;
+      color: #f8fafc;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+    }
+    .attack {
+      color: #ef4444;
+      font-weight: 600;
+    }
+    .benign {
+      color: #22c55e;
+      font-weight: 600;
+    }
+    table {
+      color: #f8fafc;
+      margin-top: 10px;
+    }
+    th {
+      color: #93c5fd;
+    }
+    #metrics-table th,
+    #metrics-table td {
+      border-color: #334155;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <h1>🛡 IDS/IPS Real-Time Detection Dashboard</h1>
+
+    <!-- Model Performance Summary -->
+    <div class="card mb-4">
+      <h4>📊 Model Performance Summary</h4>
+      <table
+        class="table table-dark table-striped table-sm"
+        id="metrics-table"
+      >
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1 Score</th>
+          </tr>
+        </thead>
+        <tbody id="metrics-body">
+          <tr>
+            <td colspan="5" class="text-center text-secondary">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Live Predictions -->
+    <div class="card">
+      <h4>🌐 Live Packet Predictions</h4>
+      <table
+        class="table table-dark table-striped table-hover table-sm"
+        id="live-table-container"
+      >
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Destination Port</th>
+            <th>Fwd Packet Length Max</th>
+            <th>Random Forest</th>
+            <th>XGBoost</th>
+            <th>SVM</th>
+            <th>Logistic Regression</th>
+          </tr>
+        </thead>
+        <tbody id="live-table">
+          <tr>
+            <td colspan="7" class="text-center text-secondary">
+              Waiting for packets...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // =============================
+    // CONFIG
+    // =============================
+    const API_BASE = "http://127.0.0.1:8000";
+
+    // =============================
+    // FETCH MODEL METRICS
+    // =============================
+    async function loadMetrics() {
+      const tbody = document.getElementById("metrics-body");
+      try {
+        const res = await fetch(`${API_BASE}/metrics`);
+        const data = await res.json();
+        tbody.innerHTML = "";
+        data.metrics.forEach((m) => {
+          const row = `<tr>
+              <td>${m.Model}</td>
+              <td>${(m.Accuracy * 100).toFixed(2)}%</td>
+              <td>${(m.Precision * 100).toFixed(2)}%</td>
+              <td>${(m.Recall * 100).toFixed(2)}%</td>
+              <td>${(m["F1-Score"] * 100).toFixed(2)}%</td>
+            </tr>`;
+          tbody.innerHTML += row;
+        });
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-danger">Error loading metrics: ${err}</td></tr>`;
+      }
+    }
+
+    // =============================
+    // HELPER
+    // =============================
+    function rnd(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    // =============================
+    // FAKE PACKET GENERATOR
+    // (Keys must match your dataset exactly)
+    // =============================
+    function generateFakePacket() {
+      return {
+        "Destination Port": rnd(-0.2, 0.0),
+        "Fwd Packet Length Max": rnd(-0.6, 1.2),
+        "Fwd IAT Std": rnd(-0.6, 3.5),
+        "Bwd Packet Length Max": rnd(-1.2, 2.5),
+        "Init_Win_bytes_forward": rnd(-1.1, 1.1),
+        "Fwd IAT Mean": rnd(-0.5, 1.2),
+        "min_seg_size_forward": rnd(-1.5, 3.0),
+        "Flow IAT Mean": rnd(-0.5, 4.0),
+        "Bwd Packets/s": rnd(-0.1, 1.0),
+        "Total Fwd Packets": Math.floor(rnd(0, 20)),
+        "Flow Packets/s": rnd(-0.12, 0.5),
+        "act_data_pkt_fwd": rnd(-0.15, 1.7),
+        "Total Length of Fwd Packets": rnd(-0.5, 1.7),
+        "Init_Win_bytes_backward": rnd(-0.4, 1.4),
+        "Fwd Packet Length Mean": rnd(-0.2, 1.4),
+      };
+    }
+
+    // =============================
+    // CALL BACKEND /predict
+    // =============================
+    async function getPrediction(packet) {
+      const res = await fetch(`${API_BASE}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(packet),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("Predict error:", res.status, txt);
+        throw new Error(`Predict failed: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.predictions[0];
+    }
+
+    // =============================
+    // UPDATE LIVE TABLE
+    // =============================
+    function addRowToLiveTable(prediction, packet) {
+      const tbody = document.getElementById("live-table");
+
+      const rf =
+        prediction["random_forest"] ||
+        prediction["random_forest_model"] ||
+        prediction["random_forest"];
+      const xgb = prediction["xgboost"];
+      const svm = prediction["svm"];
+      const lr =
+        prediction["logistic_regression"] ||
+        prediction["logistic_regression_model"];
+
+      const color = (val) =>
+        String(val).toLowerCase() === "benign"
+          ? `<span class='benign'>${val}</span>`
+          : `<span class='attack'>${val}</span>`;
+
+      const destPort = packet["Destination Port"]
+        ? packet["Destination Port"].toFixed(4)
+        : "-";
+      const fwdMax = packet["Fwd Packet Length Max"]
+        ? packet["Fwd Packet Length Max"].toFixed(4)
+        : "-";
+
+      const row = `<tr>
+          <td>${prediction.row_index + 1}</td>
+          <td>${destPort}</td>
+          <td>${fwdMax}</td>
+          <td>${color(rf)}</td>
+          <td>${color(xgb)}</td>
+          <td>${color(svm)}</td>
+          <td>${color(lr)}</td>
+        </tr>`;
+
+      tbody.insertAdjacentHTML("afterbegin", row);
+      while (tbody.rows.length > 15) tbody.deleteRow(-1);
+    }
+
+    // =============================
+    // MAIN LIVE LOOP
+    // =============================
+    async function liveLoop() {
+      try {
+        const packet = generateFakePacket();
+        const pred = await getPrediction(packet);
+        addRowToLiveTable(pred, packet);
+      } catch (err) {
+        console.error("liveLoop error:", err);
+      }
+    }
+
+    loadMetrics();
+    setInterval(liveLoop, 2500); // update every 2.5s
+  </script>
+</body>
+</html>

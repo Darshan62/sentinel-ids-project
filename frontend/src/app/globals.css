@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-text-primary antialiased;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-surface-highest/80 backdrop-blur-md rounded-2xl border border-surface-high shadow-lg;
+  }
+}
+
+.animate-pulse-err {
+  animation: pulse-danger 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-danger {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255,180,171,0.8);
+  }
+  50% {
+    opacity: .5;
+    transform: scale(1.3);
+    box-shadow: 0 0 20px rgba(255,180,171,0.2);
+  }
+}

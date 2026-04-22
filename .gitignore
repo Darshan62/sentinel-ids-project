@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Next.js / Frontend
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/.vercel/
+
+# Streamlit
+.streamlit/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Live Logs / Data
+threat_logs.csv
+results/
+Data/
+*.pcap
+*.cap
+*.mpeg 
+
+# Secrets
+.env
