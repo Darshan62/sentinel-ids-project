@@ -271,11 +271,29 @@ def start_background_sniffer():
                     asyncio.run(connection.send_json(data))
                 except RuntimeError:
                     pass # Handled internally by asyncio loop
-                    
     # Runs sniffing blocking here, so wrap in thread
     print("[INFO] Started Live Sniffing...")
-    start_sniffing(process_packet, packet_count=1000000)
-
+    try:
+        start_sniffing(process_packet, packet_count=1000000)
+    except Exception as e:
+        print(f"[ERROR] Sniffing failed: {e}")
+        curr_time = datetime.datetime.now().strftime("%H:%M:%S")
+        error_data = {
+            "id": str(uuid.uuid4()),
+            "timestamp": curr_time,
+            "src_ip": "RENDER_CLOUD",
+            "protocol": "SYS",
+            "port": "--",
+            "activity": "⚠️ CLOUD SNIFFING BLOCKED",
+            "meaning": "Live network sniffing requires Root/Admin rights. Not allowed on cloud servers. Please use the Simulator control panel.",
+            "status": "Attack",
+            "attackLabel": "PERMISSION DENIED"
+        }
+        for connection in active_connections:
+            try:
+                asyncio.run(connection.send_json(error_data))
+            except:
+                pass
 is_sniffing_active = True
 sniff_thread = None
 
